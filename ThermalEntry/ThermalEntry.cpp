@@ -211,10 +211,17 @@ PROGRAMDATA GetProgramData(FILE *f)
 	double *pdp[] = { &pd.Bi, &pd.Tfinal };
 	int *pdpi[]={&pd.run,&pd.Nx};
 
+   //assume the simulations should not run, Minor protection from read error.
+   pd.run=0;
+
 	// retrieves 3 more lines of 'int' data, and points them to their destination
 	for(i=0;i<2;i++)
 	{
-		fgets(buff,MAX_LINE_LENGTH,f);
+      fgets(buff,MAX_LINE_LENGTH,f);
+		if(feof(f)!=0){
+         pd.run=-1;
+         return pd;
+      }
 		*pdpi[i]=atoi(buff);                         
 	}//End of for
 
@@ -222,21 +229,22 @@ PROGRAMDATA GetProgramData(FILE *f)
 	for(i=0;i<2;i++)
 	{
 		fgets(buff,MAX_LINE_LENGTH,f);
+		if(feof(f)!=0){
+         pd.run=-1;
+         return pd;
+      }
 		*pdp[i]=atof(buff);                         
 	}//End of for
 
-   //
-   // EOF != fgets(whatever);
-   // put all in a for loop, if statements to decide between int and double,
-   // if EOF, set run correctly and break to return
-   //
+   // if the end of the file is reached, stop trying to run simulations
+   
 
 	pd.scase=j; //sets the case for filewrite later
 	j++;        //increments j
 	fgets(buff,MAX_LINE_LENGTH,f); // skips a line down in data file
 
 
-	if (pd.run != 1)pd.run = 0;//Ensure that pd.run is set approprately
+	//if (pd.run != 1)pd.run = 0;//Ensure that pd.run is set approprately
 
 	// since we have not used fclose, the file is still open and the line that this
 	// function is looking at remains the same

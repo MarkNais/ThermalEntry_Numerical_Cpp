@@ -8,12 +8,12 @@
 2.0          //Biot Number
 0.25         //Aspect Ratio
 
-1             //Run simulation 3?
+0             //Run simulation 3?
 41            //Node count in x
 2.0          //Biot Number
 0.25         //Aspect Ratio
 
-1             //Run simulation 4?
+0             //Run simulation 4?
 81            //Node count in x
 2.0          //Biot Number
 0.25         //Aspect Ratio
@@ -22,5 +22,3 @@
 161            //Node count in x
 2.0          //Biot Number
 0.25         //Aspect Ratio
-
-
