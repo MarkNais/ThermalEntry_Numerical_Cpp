@@ -165,7 +165,7 @@ int main()
 			printf("\nRunning Simulation %d :\n", i);
 			simulate(pd);
 		}
-	} while (pd.run != 0);
+	} while (pd.run != -1);
 
 	// closes data file once all simulations are complete 
 	//(could be closed before Given problem)
@@ -224,6 +224,12 @@ PROGRAMDATA GetProgramData(FILE *f)
 		fgets(buff,MAX_LINE_LENGTH,f);
 		*pdp[i]=atof(buff);                         
 	}//End of for
+
+   //
+   // EOF != fgets(whatever);
+   // put all in a for loop, if statements to decide between int and double,
+   // if EOF, set run correctly and break to return
+   //
 
 	pd.scase=j; //sets the case for filewrite later
 	j++;        //increments j
