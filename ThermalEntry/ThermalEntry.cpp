@@ -252,6 +252,90 @@ PROGRAMDATA GetProgramData(FILE *f)
 }//End of GetProgramData
 
 /********************************************************
+* allocate *
+* *
+* Purpose: allocate an array to be used for simulations
+* *
+* Parameters *
+* w,h - loop counters for nodes horizontal, vertical
+* W,H - horizontal and vertical nodes calculated 
+*       from input data *
+* *
+* Returns *
+* Initialized allocated array into PLATEPOINT structure nested in PROGRAMDATA *
+********************************************************/
+PROGRAMDATA allocate(PROGRAMDATA pd)
+{
+	int w;
+	pd.dx = 1 / (pd.Nx - 1);
+
+	if(pd.Nx<3)
+	{
+		printf("Sorry, you must use a positive integer of 3 or larger");
+		printf("for Node Count\n");
+		printf("\nPress Enter to end this program...");
+		getchar();
+		exit(0);
+	}
+
+	// allocate memory for a horizontal array of pointers
+	pd.pp = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
+	pd.pp2 = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
+
+	// check allocation for array of pointers
+	if (pd.pp == NULL)
+	{
+		printf("Cannot allocate pd.pp, exiting program...\n");
+		getchar();
+		exit(0);
+	}
+	// check allocation for array of pointers
+	if (pd.pp2 == NULL)
+	{
+		printf("Cannot allocate pd.pp2, exiting program...\n");
+		getchar();
+		exit(0);
+	}
+
+	// initialize PLATEPOINT variables in allocated array 
+	for(w=0;w<pd.Nx;w++)
+	{
+		pd.pp[w].Temp = 1.0;
+		pd.pp[w].x = (double)w*pd.dx;
+		pd.pp[w].res = 0.0;
+		pd.pp2[w].Temp = 1.0;
+		pd.pp2[w].x = (double)w*pd.dx;
+		pd.pp2[w].res = 0.0;
+	}
+	return pd;
+}
+
+/********************************************************
+* simulate1 *
+* *
+* Purpose: Run const. temp coarse simulation
+* *
+********************************************************/
+void simulate(PROGRAMDATA pd)
+{
+	/*
+	Function calls are in the order of:
+	allocate array
+	initialize the other variables inside of the structure
+	initialize borders
+	numerical simulation
+	print to files 
+	free allocation 
+	*/
+	pd=allocate(pd);
+	pd=pdInit(pd);
+	boundary_set(pd);
+	num_simulation(pd);
+	printLabPlates(pd);
+	freepp(pd);
+}
+
+/********************************************************
 * pdInit *
 * *
 * Purpose: Set some of the pd's variables that do not come from the data.txt file
@@ -302,8 +386,7 @@ void boundary_set(PROGRAMDATA pd)
 /********************************************************
 * num_simulation *
 * *
-* Purpose: Simulate numerical solution for constant 
-*          and sinusoidal temperature
+* Purpose: Simulate numerical solution for Thermal Entry
 * *
 * Parameters *
 * FILE *f - file pointer
@@ -411,90 +494,6 @@ PROGRAMDATA num_sim_body(PROGRAMDATA pd)
 		pd.MaxRes = fabs(pd.pp2[pd.NxInter].res);
 	}
 
-	return pd;
-}
-
-/********************************************************
-* simulate1 *
-* *
-* Purpose: Run const. temp coarse simulation
-* *
-********************************************************/
-void simulate(PROGRAMDATA pd)
-{
-	/*
-	Function calls are in the order of:
-	allocate array
-	initialize the other variables inside of the structure
-	initialize borders
-	numerical simulation
-	print to files 
-	free allocation 
-	*/
-	pd=allocate(pd);
-	pd=pdInit(pd);
-	boundary_set(pd);
-	num_simulation(pd);
-	printLabPlates(pd);
-	freepp(pd);
-}
-
-/********************************************************
-* allocate *
-* *
-* Purpose: allocate an array to be used for simulations
-* *
-* Parameters *
-* w,h - loop counters for nodes horizontal, vertical
-* W,H - horizontal and vertical nodes calculated 
-*       from input data *
-* *
-* Returns *
-* Initialized allocated array into PLATEPOINT structure nested in PROGRAMDATA *
-********************************************************/
-PROGRAMDATA allocate(PROGRAMDATA pd)
-{
-	int w;
-	pd.dx = 1 / (pd.Nx - 1);
-
-	if(pd.Nx<3)
-	{
-		printf("Sorry, you must use a positive integer of 3 or larger");
-		printf("for Node Count\n");
-		printf("\nPress Enter to end this program...");
-		getchar();
-		exit(0);
-	}
-
-	// allocate memory for a horizontal array of pointers
-	pd.pp = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
-	pd.pp2 = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
-
-	// check allocation for array of pointers
-	if (pd.pp == NULL)
-	{
-		printf("Cannot allocate pd.pp, exiting program...\n");
-		getchar();
-		exit(0);
-	}
-	// check allocation for array of pointers
-	if (pd.pp2 == NULL)
-	{
-		printf("Cannot allocate pd.pp2, exiting program...\n");
-		getchar();
-		exit(0);
-	}
-
-	// initialize PLATEPOINT variables in allocated array 
-	for(w=0;w<pd.Nx;w++)
-	{
-		pd.pp[w].Temp = 1.0;
-		pd.pp[w].x = (double)w*pd.dx;
-		pd.pp[w].res = 0.0;
-		pd.pp2[w].Temp = 1.0;
-		pd.pp2[w].x = (double)w*pd.dx;
-		pd.pp2[w].res = 0.0;
-	}
 	return pd;
 }
 
@@ -672,5 +671,3 @@ void freepp(PROGRAMDATA pd)
 	free(pd.pp);
 	free(pd.pp2);
 }
-
-
