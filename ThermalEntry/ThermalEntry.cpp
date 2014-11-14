@@ -33,7 +33,7 @@
 //  structure for finite-difference solution
 typedef struct
 {
-	double x;   // grid node unit-less position on the plate
+	double x;   // grid node unit-less position along the length of the plate
 	double Temp;   // grid node temperature (finite-difference solution)
 	double res;    // grid node residual for finite-difference solution
 }
@@ -43,10 +43,9 @@ PLATEPOINT;
 typedef struct
 {
 	int scase;     //Case counter (which simulation is it?)
-	int Nx;        //Node count in x (int?)
-//	int Ny;        //Node count in y (int?)
-	double Bi;     //Biot number
-//	double Ar;     //Aspect ratio
+//	int Nx;        //Node count in x (int?)
+	int Ny;        //Node count in y (int?)
+	double Pe;     //Biot number
 	double Tfinal; //When to stop the simulation - The Theta that determines when the simulation ends.
 	double dt;     //The time resolution, derived from Nx
 	double dx;     //the unitless node spacing
@@ -56,8 +55,8 @@ typedef struct
 	int run;       //Run the simulatuon? 1=run 0=dont run
 	double MaxRes;
 
-	PLATEPOINT *pp;   //The pointer to the first  array of plate points. (t)
-	PLATEPOINT *pp2;  //The pointer to the second array of plate points. (t+1)
+	PLATEPOINT *pp;   //The pointer to the first  array of plate points. (t) "current"
+	PLATEPOINT *pp2;  //The pointer to the second array of plate points. (t+1) "future"
 
 }
 PROGRAMDATA;
