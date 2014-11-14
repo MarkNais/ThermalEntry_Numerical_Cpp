@@ -207,8 +207,8 @@ PROGRAMDATA GetProgramData(FILE *f)
 	static int j=1;           //case counter (how many times 
 	//has this function been called?)
 	//An array of pointers where the read data is to be stored.
-	double *pdp[] = { &pd.Bi, &pd.Tfinal };
-	int *pdpi[]={&pd.run,&pd.Nx};
+	double *pdp[] = { &pd.Pe, &pd.Tfinal };
+	int *pdpi[]={&pd.run,&pd.Ny};
 
    //assume the simulations should not run, Minor protection from read error.
    pd.run=0;
@@ -241,9 +241,6 @@ PROGRAMDATA GetProgramData(FILE *f)
 	pd.scase=j; //sets the case for filewrite later
 	j++;        //increments j
 	fgets(buff,MAX_LINE_LENGTH,f); // skips a line down in data file
-
-
-	//if (pd.run != 1)pd.run = 0;//Ensure that pd.run is set approprately
 
 	// since we have not used fclose, the file is still open and the line that this
 	// function is looking at remains the same
