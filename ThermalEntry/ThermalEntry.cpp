@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <new.h>
 
 #pragma warning(disable:4996)
 
@@ -33,9 +34,9 @@
 //  structure for finite-difference solution
 typedef struct
 {
-	double x;   // grid node unit-less position on the plate
+	double x;   // grid node unit-less position along the length of the plate
 	double Temp;   // grid node temperature (finite-difference solution)
-	double res;    // grid node residual for finite-difference solution
+	//double res;    // grid node residual for finite-difference solution
 }
 PLATEPOINT;
 
@@ -43,12 +44,10 @@ PLATEPOINT;
 typedef struct
 {
 	int scase;     //Case counter (which simulation is it?)
-	int Nx;        //Node count in x (int?)
-//	int Ny;        //Node count in y (int?)
-	double Bi;     //Biot number
-//	double Ar;     //Aspect ratio
+//	int Nx;        //Node count in x (int?)
+	int Ny;        //Node count in y (int?)
+	double Pe;     //Biot number
 	double Tfinal; //When to stop the simulation - The Theta that determines when the simulation ends.
-	double dt;     //The time resolution, derived from Nx
 	double dx;     //the unitless node spacing
 	int iter;      //Tracking the iteration count
 	//Interior limits of the simulation, ex: of a 9 by 5 grid, only the inside 7 by 3 grid is calculated.
@@ -56,8 +55,19 @@ typedef struct
 	int run;       //Run the simulatuon? 1=run 0=dont run
 	double MaxRes;
 
-	PLATEPOINT *pp;   //The pointer to the first  array of plate points. (t)
-	PLATEPOINT *pp2;  //The pointer to the second array of plate points. (t+1)
+	PLATEPOINT *pp;   //The pointer to the first  array of plate points. (t) "current"
+	PLATEPOINT *pp2;  //The pointer to the second array of plate points. (t+1) "future"
+
+   double *u;        //Fully developed flow velocity
+
+   int m;            //Size of the matrix
+   double *tri_a_hold;    //a-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
+   double *tri_b_hold;    //b-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
+   double *tri_c_hold;    //c-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
+
+   double *tri_a;    //a-Component of Koorosh's Tri-Diagonal solver
+   double *tri_b;    //b-Component of Koorosh's Tri-Diagonal solver
+   double *tri_c;    //c-Component of Koorosh's Tri-Diagonal solver
 
 }
 PROGRAMDATA;
@@ -208,8 +218,8 @@ PROGRAMDATA GetProgramData(FILE *f)
 	static int j=1;           //case counter (how many times 
 	//has this function been called?)
 	//An array of pointers where the read data is to be stored.
-	double *pdp[] = { &pd.Bi, &pd.Tfinal };
-	int *pdpi[]={&pd.run,&pd.Nx};
+	double *pdp[] = { &pd.Pe, &pd.Tfinal };
+	int *pdpi[]={&pd.run,&pd.Ny};
 
    //assume the simulations should not run, Minor protection from read error.
    pd.run=0;
@@ -242,9 +252,6 @@ PROGRAMDATA GetProgramData(FILE *f)
 	pd.scase=j; //sets the case for filewrite later
 	j++;        //increments j
 	fgets(buff,MAX_LINE_LENGTH,f); // skips a line down in data file
-
-
-	//if (pd.run != 1)pd.run = 0;//Ensure that pd.run is set approprately
 
 	// since we have not used fclose, the file is still open and the line that this
 	// function is looking at remains the same
