@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <new.h>
 
 #pragma warning(disable:4996)
 
