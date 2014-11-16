@@ -677,4 +677,11 @@ void freepp(PROGRAMDATA pd)
 {
 	free(pd.pp);
 	free(pd.pp2);
+	free(pd.u);
+	free(pd.tri_a_hold);
+	free(pd.tri_b_hold);
+	free(pd.tri_c_hold);
+	free(pd.tri_a);
+	free(pd.tri_b);
+	free(pd.tri_c);
 }
