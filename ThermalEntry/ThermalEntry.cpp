@@ -36,6 +36,7 @@ typedef struct
 {
 	double x;   // grid node unit-less position along the length of the plate
 	double Temp;   // grid node temperature (finite-difference solution)
+	double u;        //Fully developed flow velocity
 	//double res;    // grid node residual for finite-difference solution
 }
 PLATEPOINT;
@@ -43,31 +44,28 @@ PLATEPOINT;
 
 typedef struct
 {
-	int scase;     //Case counter (which simulation is it?)
-//	int Nx;        //Node count in x (int?)
-	int Ny;        //Node count in y (int?)
-	double Pe;     //Biot number
-	double Tfinal; //When to stop the simulation - The Theta that determines when the simulation ends.
-	double dx;     //the unitless node spacing
-	int iter;      //Tracking the iteration count
+	int scase;		//Case counter (which simulation is it?)
+	int Ny;			//Node count in y (int?)
+	double Pe;		//Biot number
+	double Tfinal;	//When to stop the simulation - The Theta that determines when the simulation ends.
+	double dx;		//the unitless node spacing along pipe
+	double dy;		//the unitless node spacing through pipe
+	int iter;		//Tracking the iteration count
+
 	//Interior limits of the simulation, ex: of a 9 by 5 grid, only the inside 7 by 3 grid is calculated.
-	int NxInter;
-	int run;       //Run the simulatuon? 1=run 0=dont run
+	int NyInter;
+	int run;		//Run the simulatuon? 1=run 0=dont run
 	double MaxRes;
 
-	PLATEPOINT *pp;   //The pointer to the first  array of plate points. (t) "current"
-	PLATEPOINT *pp2;  //The pointer to the second array of plate points. (t+1) "future"
+	PLATEPOINT *pp;		//The pointer to the first  array of plate points. (t) "current"
+	PLATEPOINT *pp2;	//The pointer to the second array of plate points. (t+1) "future"
 
-   double *u;        //Fully developed flow velocity
+	int m;				//Size of the matrix
+	double *tri_hold[3];//Components of Koorosh's Tri-Diagonal solver. Should not be passed to the function
 
-   int m;            //Size of the matrix
-   double *tri_a_hold;    //a-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
-   double *tri_b_hold;    //b-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
-   double *tri_c_hold;    //c-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
-
-   double *tri_a;    //a-Component of Koorosh's Tri-Diagonal solver
-   double *tri_b;    //b-Component of Koorosh's Tri-Diagonal solver
-   double *tri_c;    //c-Component of Koorosh's Tri-Diagonal solver
+	double *tri_a;		//a-Component of Koorosh's Tri-Diagonal solver
+	double *tri_b;		//b-Component of Koorosh's Tri-Diagonal solver
+	double *tri_c;		//c-Component of Koorosh's Tri-Diagonal solver
 
 }
 PROGRAMDATA;
@@ -273,10 +271,11 @@ PROGRAMDATA GetProgramData(FILE *f)
 ********************************************************/
 PROGRAMDATA allocate(PROGRAMDATA pd)
 {
-	int w;
-	pd.dx = 1 / (pd.Nx - 1);
+	int y,i;
+	double *pda[]={pd.tri_hold[0], pd.tri_hold[1], pd.tri_hold[2], pd.tri_a, pd.tri_b, pd.tri_c};
+	pd.dy = 1 / (pd.Ny - 1);
 
-	if(pd.Nx<3)
+	if(pd.Ny<3)
 	{
 		printf("Sorry, you must use a positive integer of 3 or larger");
 		printf("for Node Count\n");
@@ -286,8 +285,8 @@ PROGRAMDATA allocate(PROGRAMDATA pd)
 	}
 
 	// allocate memory for a horizontal array of pointers
-	pd.pp = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
-	pd.pp2 = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
+	pd.pp = (PLATEPOINT*)malloc(pd.Ny*sizeof(PLATEPOINT));
+	pd.pp2 = (PLATEPOINT*)malloc(pd.Ny*sizeof(PLATEPOINT));
 
 	// check allocation for array of pointers
 	if (pd.pp == NULL)
@@ -304,15 +303,28 @@ PROGRAMDATA allocate(PROGRAMDATA pd)
 		exit(0);
 	}
 
+	//introduce allocation for the new freepp additions.
+	for(i=0;i<6;i++){
+		pda[i] = (double*)malloc(pd.m*sizeof(double));
+		if (pda[i] == NULL)
+		{
+			printf("Cannot allocate matrix-array number: %d, exiting program...\n",i);
+			getchar();
+			exit(0);
+		}
+	}
+
 	// initialize PLATEPOINT variables in allocated array 
-	for(w=0;w<pd.Nx;w++)
+	for(y=0;y<pd.Ny;y++)
 	{
-		pd.pp[w].Temp = 1.0;
-		pd.pp[w].x = (double)w*pd.dx;
-		pd.pp[w].res = 0.0;
-		pd.pp2[w].Temp = 1.0;
-		pd.pp2[w].x = (double)w*pd.dx;
-		pd.pp2[w].res = 0.0;
+		pd.pp[y].Temp = 1.0;
+		pd.pp2[y].Temp = pd.pp[y].Temp;
+
+		pd.pp[y].x = (double)y*pd.dy;
+		pd.pp2[y].x = pd.pp[y].x;
+
+		pd.pp[y].u = 2*(1-pow(pd.pp[y].x,2));
+		pd.pp2[y].u = pd.pp[y].u;
 	}
 	return pd;
 }
@@ -677,10 +689,7 @@ void freepp(PROGRAMDATA pd)
 {
 	free(pd.pp);
 	free(pd.pp2);
-	free(pd.u);
-	free(pd.tri_a_hold);
-	free(pd.tri_b_hold);
-	free(pd.tri_c_hold);
+	free(pd.tri_hold);
 	free(pd.tri_a);
 	free(pd.tri_b);
 	free(pd.tri_c);
