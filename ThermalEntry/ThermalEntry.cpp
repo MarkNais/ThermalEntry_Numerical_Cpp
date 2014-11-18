@@ -27,7 +27,7 @@
 #pragma warning(disable:4996)
 
 #define PI                       (4.0*atan(1.0))
-#define MAX_ITER                 100000            // maximum iterations for F-D
+#define MAX_ITER                 500            // maximum iterations for F-D
 #define DATA_FILENAME			 "data.txt"
 #define MAX_LINE_LENGTH			 1024
 
@@ -402,7 +402,7 @@ void boundary_set(PROGRAMDATA pd)
    pd.tri_hold[0][pd.NyInter] = 1.0; //a
    pd.tri_hold[1][pd.NyInter] = 0.0; //b
    pd.tri_hold[2][pd.NyInter] = 0.0; //c
-   //tri_hold[3] at NyInter is the same from the loop above.
+   pd.tri_hold[3][pd.NyInter] = 1.0; //c
 }
 
 /********************************************************
@@ -422,6 +422,7 @@ void boundary_set(PROGRAMDATA pd)
 ********************************************************/
 void num_simulation(PROGRAMDATA pd)
 {
+   int i;
 	FILE *f;
 	PLATEPOINT *Hold;
 
@@ -433,9 +434,13 @@ void num_simulation(PROGRAMDATA pd)
 		printf("File can be read but not writen to.\n");
 		getchar();
 		exit (1);
-	}
+	}  
 
-	fprintf(f,"iter,log(MaxRes)\n");
+   fprintf(f,"iter,pos");
+   for(i=0;i<pd.Ny;i++){
+      fprintf(f,",%le",pd.pp[i].r);
+   }
+   fprintf(f,"\n");
 
 	//This loop will look through every core temperature node
 	/*The loop will continue as long as the Maximum residual of the
@@ -444,7 +449,6 @@ void num_simulation(PROGRAMDATA pd)
 	{
 		pd.iter++;
 		//Need to reset or else MaxRes will always > abs(Res) after the first iteration
-		pd.MaxRes=0.0;
 
 		//Simulates the innerbody, then the boundaries. Writes to pd.pp2
 		pd=num_sim_body(pd);
@@ -458,9 +462,14 @@ void num_simulation(PROGRAMDATA pd)
 		pd.pp2 = Hold;
 
 		//Print off the maximum residual and root mean squared for each iteration
-		fprintf(f,"%d,%le\n",pd.iter,log10(pd.MaxRes));
+		fprintf(f,"%d,%d",pd.iter, pd.iter*pd.dx);
+      for(i=0;i<pd.Ny;i++){
+         fprintf(f,",%le",pd.pp[i].Temp);
+      }
+      fprintf(f,"\n");
+
 	}
-	while(pd.pp[pd.NxInter].Temp>pd.Tfinal && pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
+	while(pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
 
 	fclose(f);
 }
@@ -482,8 +491,9 @@ PROGRAMDATA triCopy(PROGRAMDATA pd){
       pd.tri_a[i]=pd.tri_hold[0][i];
       pd.tri_b[i]=pd.tri_hold[1][i];
       pd.tri_c[i]=pd.tri_hold[2][i];
-      pd.tri_y[i]=pd.tri_hold[3][i] * pd.pp[i].u / pd.dx;
+      pd.tri_y[i]=pd.tri_hold[3][i] * pd.pp[i].Temp;
    }
+   pd.tri_y[pd.NyInter] = 1.0;
    return pd;
 }
 
@@ -500,8 +510,13 @@ PROGRAMDATA triCopy(PROGRAMDATA pd){
 ********************************************************/
 PROGRAMDATA num_sim_body(PROGRAMDATA pd)
 {
-
-
+   int y;
+   pd = triCopy(pd);
+   Tridiagonal(pd.Ny, pd.tri_c, pd.tri_a, pd.tri_b, pd.tri_y);
+   for(y=0;y<pd.NyInter;y++){
+      pd.pp2[y].Temp = pd.tri_y;
+   }
+   pd.pp2[pd.NyInter].Temp=1;
 	return pd;
 }
 
