@@ -34,7 +34,7 @@
 //  structure for finite-difference solution
 typedef struct
 {
-	double x;   // grid node unit-less position along the length of the plate
+	double r;   // grid node unit-less position along the length of the plate
 	double Temp;   // grid node temperature (finite-difference solution)
 	double u;        //Fully developed flow velocity
 	//double res;    // grid node residual for finite-difference solution
@@ -55,12 +55,10 @@ typedef struct
 	//Interior limits of the simulation, ex: of a 9 by 5 grid, only the inside 7 by 3 grid is calculated.
 	int NyInter;
 	int run;		//Run the simulatuon? 1=run 0=dont run
-	double MaxRes;
 
 	PLATEPOINT *pp;		//The pointer to the first  array of plate points. (t) "current"
 	PLATEPOINT *pp2;	//The pointer to the second array of plate points. (t+1) "future"
 
-	int m;				//Size of the matrix
 	double *tri_hold[3];//Components of Koorosh's Tri-Diagonal solver. Should not be passed to the function
 
 	double *tri_a;		//a-Component of Koorosh's Tri-Diagonal solver
@@ -219,14 +217,14 @@ PROGRAMDATA GetProgramData(FILE *f)
 	static int j=1;           //case counter (how many times 
 	//has this function been called?)
 	//An array of pointers where the read data is to be stored.
-	double *pdp[] = { &pd.Pe, &pd.Tfinal };
+	double *pdp[] = { &pd.Pe, &pd.Tfinal, &pd.dx};
 	int *pdpi[]={&pd.run,&pd.Ny};
 
    //assume the simulations should not run, Minor protection from read error.
    pd.run=0;
 
 	// retrieves 3 more lines of 'int' data, and points them to their destination
-	for(i=0;i<2;i++)
+	for(i=0;i<3;i++)
 	{
       fgets(buff,MAX_LINE_LENGTH,f);
 		if(feof(f)!=0){
@@ -274,9 +272,8 @@ PROGRAMDATA GetProgramData(FILE *f)
 ********************************************************/
 PROGRAMDATA allocate(PROGRAMDATA pd)
 {
-	int y,i;
+	int i;
 	double *pda[]={pd.tri_hold[0], pd.tri_hold[1], pd.tri_hold[2], pd.tri_a, pd.tri_b, pd.tri_c};
-	pd.dy = 1 / (pd.Ny - 1);
 
 	if(pd.Ny<3)
 	{
@@ -292,42 +289,22 @@ PROGRAMDATA allocate(PROGRAMDATA pd)
 	pd.pp2 = (PLATEPOINT*)malloc(pd.Ny*sizeof(PLATEPOINT));
 
 	// check allocation for array of pointers
-	if (pd.pp == NULL)
+	if (pd.pp == NULL || pd.pp2 == NULL)
 	{
-		printf("Cannot allocate pd.pp, exiting program...\n");
-		getchar();
-		exit(0);
-	}
-	// check allocation for array of pointers
-	if (pd.pp2 == NULL)
-	{
-		printf("Cannot allocate pd.pp2, exiting program...\n");
+		printf("Cannot allocate pd.pp or pd.pp2, exiting program...\n");
 		getchar();
 		exit(0);
 	}
 
 	//introduce allocation for the new freepp additions.
 	for(i=0;i<6;i++){
-		pda[i] = (double*)malloc(pd.m*sizeof(double));
+		pda[i] = (double*)malloc(pd.Ny*sizeof(double));
 		if (pda[i] == NULL)
 		{
 			printf("Cannot allocate matrix-array number: %d, exiting program...\n",i);
 			getchar();
 			exit(0);
 		}
-	}
-
-	// initialize PLATEPOINT variables in allocated array 
-	for(y=0;y<pd.Ny;y++)
-	{
-		pd.pp[y].Temp = 1.0;
-		pd.pp2[y].Temp = pd.pp[y].Temp;
-
-		pd.pp[y].x = (double)y*pd.dy;
-		pd.pp2[y].x = pd.pp[y].x;
-
-		pd.pp[y].u = 2*(1-pow(pd.pp[y].x,2));
-		pd.pp2[y].u = pd.pp[y].u;
 	}
 	return pd;
 }
@@ -370,16 +347,21 @@ void simulate(PROGRAMDATA pd)
 ********************************************************/
 PROGRAMDATA pdInit(PROGRAMDATA pd)
 {
-	int i=0;
-	pd.NxInter=pd.Nx-1;
-	pd.dx=1.0/(pd.Nx-1);
-	pd.dt = pow(pd.dx, 2) / 2.0;
+	int i=0, y=0;
 	pd.iter=0;
-	pd.MaxRes=0.0;
-	for(i=0;i<pd.Nx;i++)
+   pd.NyInter = pd.Ny - 1;
+	pd.dy = 1 / pd.NyInter;
+	// initialize PLATEPOINT variables in allocated array 
+	for(y=0;y<pd.Ny;y++)
 	{
-		pd.pp[i].x=i*pd.dx;
-		pd.pp2[i].x=i*pd.dx;
+		pd.pp[y].Temp = 0.0;
+		pd.pp2[y].Temp = pd.pp[y].Temp;
+
+		pd.pp[y].r = (double)y*pd.dy;
+		pd.pp2[y].r = pd.pp[y].r;
+
+		pd.pp[y].u = 2*(1-pow(pd.pp[y].r,2));
+		pd.pp2[y].u = pd.pp[y].u;
 	}
 	return pd;
 }
