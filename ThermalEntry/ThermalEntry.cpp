@@ -27,7 +27,7 @@
 #pragma warning(disable:4996)
 
 #define PI                       (4.0*atan(1.0))
-#define MAX_ITER                 500            // maximum iterations for F-D
+#define MAX_ITER                 10000            // maximum iterations for F-D
 #define DATA_FILENAME			 "data.txt"
 #define MAX_LINE_LENGTH			 1024
 
@@ -220,14 +220,14 @@ PROGRAMDATA GetProgramData(FILE *f)
 	static int j=1;           //case counter (how many times 
 	//has this function been called?)
 	//An array of pointers where the read data is to be stored.
-	double *pdp[] = { &pd.Pe, &pd.Tfinal, &pd.dx};
 	int *pdpi[]={&pd.run,&pd.Ny};
+	double *pdp[] = { &pd.Pe, &pd.Tfinal, &pd.dx};
 
    //assume the simulations should not run, Minor protection from read error.
    pd.run=0;
 
 	// retrieves 3 more lines of 'int' data, and points them to their destination
-	for(i=0;i<3;i++)
+	for(i=0;i<2;i++)
 	{
       fgets(buff,MAX_LINE_LENGTH,f);
 		if(feof(f)!=0){
@@ -238,7 +238,7 @@ PROGRAMDATA GetProgramData(FILE *f)
 	}//End of for
 
 	// retrieves 2 more lines of 'double' data, and points them to their destination
-	for(i=0;i<2;i++)
+	for(i=0;i<3;i++)
 	{
 		fgets(buff,MAX_LINE_LENGTH,f);
 		if(feof(f)!=0){
@@ -276,7 +276,7 @@ PROGRAMDATA GetProgramData(FILE *f)
 PROGRAMDATA allocate(PROGRAMDATA pd)
 {
 	int i;
-	double *pda[]={pd.tri_hold[0], pd.tri_hold[1], pd.tri_hold[2], pd.tri_hold[3], pd.tri_a, pd.tri_b, pd.tri_c, pd.tri_y};
+	double **pda[]={&pd.tri_hold[0], &pd.tri_hold[1], &pd.tri_hold[2], &pd.tri_hold[3], &pd.tri_a, &pd.tri_b, &pd.tri_c, &pd.tri_y};
 
 	if(pd.Ny<3)
 	{
@@ -301,8 +301,8 @@ PROGRAMDATA allocate(PROGRAMDATA pd)
 
 	//introduce allocation for the new freepp additions.
 	for(i=0;i<8;i++){
-		pda[i] = (double*)malloc(pd.Ny*sizeof(double));
-		if (pda[i] == NULL)
+		*pda[i] = (double*)malloc(pd.Ny*sizeof(double));
+		if (*pda[i] == NULL)
 		{
 			printf("Cannot allocate matrix-array number: %d, exiting program...\n",i);
 			getchar();
@@ -352,7 +352,7 @@ PROGRAMDATA pdInit(PROGRAMDATA pd)
 {
 	pd.iter=0;
    pd.NyInter = pd.Ny - 1;
-	pd.dy = 1 / pd.NyInter;
+	pd.dy = 1.0 / (double)pd.NyInter;
 	return pd;
 }
 
@@ -440,7 +440,13 @@ void num_simulation(PROGRAMDATA pd)
    for(i=0;i<pd.Ny;i++){
       fprintf(f,",%le",pd.pp[i].r);
    }
+   fprintf(f,"\n0,0");
+   for(i=0;i<pd.Ny;i++){
+      fprintf(f,",%le",pd.pp[i].Temp);
+   }
    fprintf(f,"\n");
+
+   pd.iter=0;
 
 	//This loop will look through every core temperature node
 	/*The loop will continue as long as the Maximum residual of the
@@ -462,7 +468,7 @@ void num_simulation(PROGRAMDATA pd)
 		pd.pp2 = Hold;
 
 		//Print off the maximum residual and root mean squared for each iteration
-		fprintf(f,"%d,%d",pd.iter, pd.iter*pd.dx);
+		fprintf(f,"%d,%d",pd.iter, (double)pd.iter*pd.dx);
       for(i=0;i<pd.Ny;i++){
          fprintf(f,",%le",pd.pp[i].Temp);
       }
@@ -691,12 +697,16 @@ int nint(double d)
 ********************************************************/
 void freepp(PROGRAMDATA pd)
 {
+   int i;
 	free(pd.pp);
 	free(pd.pp2);
-	free(pd.tri_hold);
+   for(i=0;i<4;i++){
+      free(pd.tri_hold[i]);
+   }
 	free(pd.tri_a);
 	free(pd.tri_b);
 	free(pd.tri_c);
+	free(pd.tri_y);
 }
 
 

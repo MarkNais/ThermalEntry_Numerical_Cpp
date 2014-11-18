@@ -1,5 +1,5 @@
 1             //Run simulation 1?
-11            //Node count in y
+51            //Node count in y
 4000.0        //Pe Number
 0.25          //T Final
 0.1           //dx
