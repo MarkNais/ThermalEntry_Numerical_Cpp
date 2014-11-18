@@ -27,47 +27,43 @@
 #pragma warning(disable:4996)
 
 #define PI                       (4.0*atan(1.0))
-#define MAX_ITER                 100000            // maximum iterations for F-D
+#define MAX_ITER                 10000            // maximum iterations for F-D
 #define DATA_FILENAME			 "data.txt"
 #define MAX_LINE_LENGTH			 1024
 
 //  structure for finite-difference solution
 typedef struct
 {
-	double x;   // grid node unit-less position along the length of the plate
+	double r;   // grid node unit-less position along the length of the plate
 	double Temp;   // grid node temperature (finite-difference solution)
-	//double res;    // grid node residual for finite-difference solution
+	double u;        //Fully developed flow velocity
 }
 PLATEPOINT;
 
 
 typedef struct
 {
-	int scase;     //Case counter (which simulation is it?)
-//	int Nx;        //Node count in x (int?)
-	int Ny;        //Node count in y (int?)
-	double Pe;     //Biot number
-	double Tfinal; //When to stop the simulation - The Theta that determines when the simulation ends.
-	double dx;     //the unitless node spacing
-	int iter;      //Tracking the iteration count
+	int scase;		//Case counter (which simulation is it?)
+	int Ny;			//Node count in y (int?)
+	double Pe;		//Biot number
+	double Tfinal;	//When to stop the simulation - The Theta that determines when the simulation ends.
+	double dx;		//the unitless node spacing along pipe
+	double dy;		//the unitless node spacing through pipe
+	int iter;		//Tracking the iteration count
+
 	//Interior limits of the simulation, ex: of a 9 by 5 grid, only the inside 7 by 3 grid is calculated.
-	int NxInter;
-	int run;       //Run the simulatuon? 1=run 0=dont run
-	double MaxRes;
+	int NyInter;
+	int run;		//Run the simulatuon? 1=run 0=dont run
 
-	PLATEPOINT *pp;   //The pointer to the first  array of plate points. (t) "current"
-	PLATEPOINT *pp2;  //The pointer to the second array of plate points. (t+1) "future"
+	PLATEPOINT *pp;		//The pointer to the first  array of plate points. (t) "current"
+	PLATEPOINT *pp2;	//The pointer to the second array of plate points. (t+1) "future"
 
-   double *u;        //Fully developed flow velocity
+	double *tri_hold[4];//Components of Koorosh's Tri-Diagonal solver. Should not be passed to the function
 
-   int m;            //Size of the matrix
-   double *tri_a_hold;    //a-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
-   double *tri_b_hold;    //b-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
-   double *tri_c_hold;    //c-Component of Koorosh's Tri-Diagonal solver. Should not be passed to the function
-
-   double *tri_a;    //a-Component of Koorosh's Tri-Diagonal solver
-   double *tri_b;    //b-Component of Koorosh's Tri-Diagonal solver
-   double *tri_c;    //c-Component of Koorosh's Tri-Diagonal solver
+	double *tri_a;		//a-Component of Koorosh's Tri-Diagonal solver
+	double *tri_b;		//b-Component of Koorosh's Tri-Diagonal solver
+	double *tri_c;		//c-Component of Koorosh's Tri-Diagonal solver
+	double *tri_y;		//c-Component of Koorosh's Tri-Diagonal solver
 
 }
 PROGRAMDATA;
@@ -104,6 +100,9 @@ PROGRAMDATA num_sim_body(PROGRAMDATA);
 // functions for each simulation
 void simulate(PROGRAMDATA);
 
+//Copy the contents of tri_hold
+PROGRAMDATA triCopy(PROGRAMDATA);
+
 // allocating and free allocation fucntions
 PROGRAMDATA allocate(PROGRAMDATA);
 void freepp(PROGRAMDATA);
@@ -117,6 +116,9 @@ void printLabPlates(PROGRAMDATA);
 
 //rounding function
 int nint(double);
+
+//Koorosh's TriDiagonal solver
+void Tridiagonal( int, double*, double*, double*, double*);
 //------------------------- END OF FUNCTION PROTOTYPES ----------------------------------
 
 
@@ -218,8 +220,8 @@ PROGRAMDATA GetProgramData(FILE *f)
 	static int j=1;           //case counter (how many times 
 	//has this function been called?)
 	//An array of pointers where the read data is to be stored.
-	double *pdp[] = { &pd.Pe, &pd.Tfinal };
 	int *pdpi[]={&pd.run,&pd.Ny};
+	double *pdp[] = { &pd.Pe, &pd.Tfinal, &pd.dx};
 
    //assume the simulations should not run, Minor protection from read error.
    pd.run=0;
@@ -236,7 +238,7 @@ PROGRAMDATA GetProgramData(FILE *f)
 	}//End of for
 
 	// retrieves 2 more lines of 'double' data, and points them to their destination
-	for(i=0;i<2;i++)
+	for(i=0;i<3;i++)
 	{
 		fgets(buff,MAX_LINE_LENGTH,f);
 		if(feof(f)!=0){
@@ -273,10 +275,10 @@ PROGRAMDATA GetProgramData(FILE *f)
 ********************************************************/
 PROGRAMDATA allocate(PROGRAMDATA pd)
 {
-	int w;
-	pd.dx = 1 / (pd.Nx - 1);
+	int i;
+	double **pda[]={&pd.tri_hold[0], &pd.tri_hold[1], &pd.tri_hold[2], &pd.tri_hold[3], &pd.tri_a, &pd.tri_b, &pd.tri_c, &pd.tri_y};
 
-	if(pd.Nx<3)
+	if(pd.Ny<3)
 	{
 		printf("Sorry, you must use a positive integer of 3 or larger");
 		printf("for Node Count\n");
@@ -286,33 +288,26 @@ PROGRAMDATA allocate(PROGRAMDATA pd)
 	}
 
 	// allocate memory for a horizontal array of pointers
-	pd.pp = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
-	pd.pp2 = (PLATEPOINT*)malloc(pd.Nx*sizeof(PLATEPOINT));
+	pd.pp = (PLATEPOINT*)malloc(pd.Ny*sizeof(PLATEPOINT));
+	pd.pp2 = (PLATEPOINT*)malloc(pd.Ny*sizeof(PLATEPOINT));
 
 	// check allocation for array of pointers
-	if (pd.pp == NULL)
+	if (pd.pp == NULL || pd.pp2 == NULL)
 	{
-		printf("Cannot allocate pd.pp, exiting program...\n");
-		getchar();
-		exit(0);
-	}
-	// check allocation for array of pointers
-	if (pd.pp2 == NULL)
-	{
-		printf("Cannot allocate pd.pp2, exiting program...\n");
+		printf("Cannot allocate pd.pp or pd.pp2, exiting program...\n");
 		getchar();
 		exit(0);
 	}
 
-	// initialize PLATEPOINT variables in allocated array 
-	for(w=0;w<pd.Nx;w++)
-	{
-		pd.pp[w].Temp = 1.0;
-		pd.pp[w].x = (double)w*pd.dx;
-		pd.pp[w].res = 0.0;
-		pd.pp2[w].Temp = 1.0;
-		pd.pp2[w].x = (double)w*pd.dx;
-		pd.pp2[w].res = 0.0;
+	//introduce allocation for the new freepp additions.
+	for(i=0;i<8;i++){
+		*pda[i] = (double*)malloc(pd.Ny*sizeof(double));
+		if (*pda[i] == NULL)
+		{
+			printf("Cannot allocate matrix-array number: %d, exiting program...\n",i);
+			getchar();
+			exit(0);
+		}
 	}
 	return pd;
 }
@@ -338,7 +333,7 @@ void simulate(PROGRAMDATA pd)
 	pd=pdInit(pd);
 	boundary_set(pd);
 	num_simulation(pd);
-	printLabPlates(pd);
+	//printLabPlates(pd);
 	freepp(pd);
 }
 
@@ -355,17 +350,9 @@ void simulate(PROGRAMDATA pd)
 ********************************************************/
 PROGRAMDATA pdInit(PROGRAMDATA pd)
 {
-	int i=0;
-	pd.NxInter=pd.Nx-1;
-	pd.dx=1.0/(pd.Nx-1);
-	pd.dt = pow(pd.dx, 2) / 2.0;
 	pd.iter=0;
-	pd.MaxRes=0.0;
-	for(i=0;i<pd.Nx;i++)
-	{
-		pd.pp[i].x=i*pd.dx;
-		pd.pp2[i].x=i*pd.dx;
-	}
+   pd.NyInter = pd.Ny - 1;
+	pd.dy = 1.0 / (double)pd.NyInter;
 	return pd;
 }
 
@@ -384,10 +371,38 @@ PROGRAMDATA pdInit(PROGRAMDATA pd)
 ********************************************************/
 void boundary_set(PROGRAMDATA pd)
 {
-	int h;
+   int y;
+   double a = 4.0/(pd.Pe*pow(pd.dy,2)), bc = -2.0 / (pd.Pe * pow(pd.dy,2)) ;
 
-	//Set the entire line to be the initial temperature (Theta)=1
-	for(h=0; h<pd.Nx; h++) pd.pp[h].Temp=1.0;
+	// initialize PLATEPOINT variables in allocated array 
+	for(y=0;y<pd.Ny;y++)
+	{
+		pd.pp[y].Temp = 0.0;
+		pd.pp2[y].Temp = pd.pp[y].Temp;
+
+		pd.pp[y].r = (double)y*pd.dy;
+		pd.pp2[y].r = pd.pp[y].r;
+
+		pd.pp[y].u = 2*(1-pow(pd.pp[y].r,2));
+		pd.pp2[y].u = pd.pp[y].u;
+      
+      pd.tri_hold[3][y] = pd.pp[y].u / pd.dx;
+      pd.tri_hold[0][y] = pd.tri_hold[3][y] + a;
+      pd.tri_hold[1][y] = bc * (1 + pd.dy/(2*pd.pp[y].r));
+      pd.tri_hold[2][y] = bc * (1 - pd.dy/(2*pd.pp[y].r));
+
+	}
+   pd.pp[pd.NyInter].Temp = 1.0;
+   pd.pp2[pd.NyInter].Temp = 1.0;
+   
+   pd.tri_hold[0][0]= 3.0/2.0; //R1a
+   pd.tri_hold[1][0]= -2.0; //R1b
+   pd.tri_hold[2][0]= 1.0/2.0; //R1c
+   pd.tri_hold[3][0]= 0.0; //R1y
+   pd.tri_hold[0][pd.NyInter] = 1.0; //a
+   pd.tri_hold[1][pd.NyInter] = 0.0; //b
+   pd.tri_hold[2][pd.NyInter] = 0.0; //c
+   pd.tri_hold[3][pd.NyInter] = 1.0; //c
 }
 
 /********************************************************
@@ -407,6 +422,7 @@ void boundary_set(PROGRAMDATA pd)
 ********************************************************/
 void num_simulation(PROGRAMDATA pd)
 {
+   int i;
 	FILE *f;
 	PLATEPOINT *Hold;
 
@@ -418,9 +434,19 @@ void num_simulation(PROGRAMDATA pd)
 		printf("File can be read but not writen to.\n");
 		getchar();
 		exit (1);
-	}
+	}  
 
-	fprintf(f,"iter,log(MaxRes)\n");
+   fprintf(f,"iter,pos");
+   for(i=0;i<pd.Ny;i++){
+      fprintf(f,",%le",pd.pp[i].r);
+   }
+   fprintf(f,"\n0,0");
+   for(i=0;i<pd.Ny;i++){
+      fprintf(f,",%le",pd.pp[i].Temp);
+   }
+   fprintf(f,"\n");
+
+   pd.iter=0;
 
 	//This loop will look through every core temperature node
 	/*The loop will continue as long as the Maximum residual of the
@@ -429,7 +455,6 @@ void num_simulation(PROGRAMDATA pd)
 	{
 		pd.iter++;
 		//Need to reset or else MaxRes will always > abs(Res) after the first iteration
-		pd.MaxRes=0.0;
 
 		//Simulates the innerbody, then the boundaries. Writes to pd.pp2
 		pd=num_sim_body(pd);
@@ -443,11 +468,39 @@ void num_simulation(PROGRAMDATA pd)
 		pd.pp2 = Hold;
 
 		//Print off the maximum residual and root mean squared for each iteration
-		fprintf(f,"%d,%le\n",pd.iter,log10(pd.MaxRes));
+		fprintf(f,"%d,%d",pd.iter, (double)pd.iter*pd.dx);
+      for(i=0;i<pd.Ny;i++){
+         fprintf(f,",%le",pd.pp[i].Temp);
+      }
+      fprintf(f,"\n");
+
 	}
-	while(pd.pp[pd.NxInter].Temp>pd.Tfinal && pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
+	while(pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
 
 	fclose(f);
+}
+
+/********************************************************
+* triCopy *
+* *
+* Purpose: Copy the contents from pd.tri_hold to the component vectors
+* *
+* Parameters *
+* i - for loop index
+* *
+* Returns *
+* pd *
+********************************************************/
+PROGRAMDATA triCopy(PROGRAMDATA pd){
+   int i;
+   for(i=0; i<pd.Ny; i++){
+      pd.tri_a[i]=pd.tri_hold[0][i];
+      pd.tri_b[i]=pd.tri_hold[1][i];
+      pd.tri_c[i]=pd.tri_hold[2][i];
+      pd.tri_y[i]=pd.tri_hold[3][i] * pd.pp[i].Temp;
+   }
+   pd.tri_y[pd.NyInter] = 1.0;
+   return pd;
 }
 
 /********************************************************
@@ -463,44 +516,13 @@ void num_simulation(PROGRAMDATA pd)
 ********************************************************/
 PROGRAMDATA num_sim_body(PROGRAMDATA pd)
 {
-	//Index trackers
-	int i;
-	const double dx=pow(pd.dx,2.0);
-	//Note, the simulation should run from the "outside" of the plate to the glue
-	//In this case, with my coordinates, that is from 1 to NxInter
-	for(i=pd.NxInter-1; i > 0 ;i--)
-	{
-			//Calculated residual before temperature so that
-			//the initial temperature value is not lost
-		pd.pp2[i].res = pd.pp[i].Temp
-			- (pd.dt / dx*(pd.pp[i + 1].Temp + pd.pp[i - 1].Temp));
-				//+ pd.pp[i].Temp*(1-2*pd.dt/dx));
-			//Temperature calculation
-			pd.pp2[i].Temp = pd.pp[i].Temp-pd.pp2[i].res ;
-
-			//this will store the largest residual value found during the iteration
-			if(fabs(pd.pp2[i].res)>pd.MaxRes)
-			{
-				pd.MaxRes=fabs(pd.pp2[i].res);
-			}
-	}//End inner body loop
-
-	//"Surface" Boundary condition
-	pd.pp2[0].res = pd.pp[0].Temp - (4 * pd.pp2[1].Temp - pd.pp2[2].Temp) / (3 + 2 * pd.Bi*pd.dx);
-	pd.pp2[0].Temp = pd.pp[0].Temp - pd.pp2[0].res;
-	if (fabs(pd.pp2[0].res)>pd.MaxRes)
-	{
-		pd.MaxRes = fabs(pd.pp2[0].res);
-	}
-
-	//"Gel" boundary condition
-	pd.pp2[pd.NxInter].res = pd.pp[pd.NxInter].Temp - (4 * pd.pp2[pd.NxInter - 1].Temp - pd.pp2[pd.NxInter - 2].Temp) / 3;
-	pd.pp2[pd.NxInter].Temp = pd.pp[pd.NxInter].Temp - pd.pp2[pd.NxInter].res;
-	if (fabs(pd.pp2[pd.NxInter].res)>pd.MaxRes)
-	{
-		pd.MaxRes = fabs(pd.pp2[pd.NxInter].res);
-	}
-
+   int y;
+   pd = triCopy(pd);
+   Tridiagonal(pd.Ny, pd.tri_c, pd.tri_a, pd.tri_b, pd.tri_y);
+   for(y=0;y<pd.NyInter;y++){
+      pd.pp2[y].Temp = pd.tri_y[y];
+   }
+   pd.pp2[pd.NyInter].Temp=1;
 	return pd;
 }
 
@@ -640,15 +662,15 @@ void printLabPlates(PROGRAMDATA pd)
 
 	//header
 	fprintf(f, "VARIABLES = ""X"", ""T""\n");
-	fprintf(f, "ZONE I=%hd, F=POINT\n", pd.Nx);
+	fprintf(f, "ZONE I=%hd, F=POINT\n", pd.Ny);
 
 	//loop heights, starting from the bottom
 	
-		for (i = 0; i<pd.Nx; i++)//loop width, starting from the left
+		for (i = 0; i<pd.Ny; i++)//loop width, starting from the left
 		{
 			//All if the values, in order, in scientific notation. See header for order
 			fprintf(f, "%+12.7lg %+12.7lg\n"
-				, pd.pp[i].x, 1-pd.pp[i].Temp);
+				, pd.pp[i].r, 1-pd.pp[i].Temp);
 		}
 	fclose(f);//close the file stream
 	return;
@@ -675,6 +697,70 @@ int nint(double d)
 ********************************************************/
 void freepp(PROGRAMDATA pd)
 {
+   int i;
 	free(pd.pp);
 	free(pd.pp2);
+   for(i=0;i<4;i++){
+      free(pd.tri_hold[i]);
+   }
+	free(pd.tri_a);
+	free(pd.tri_b);
+	free(pd.tri_c);
+	free(pd.tri_y);
+}
+
+
+//********************************************************************
+//
+// Tridiagonal
+//
+// m is the size of the matrix =(m*m)
+// Care to the values vs. pointers
+// The array destroys the variables, thus give copies
+// 
+// Function to solve a tridiagonal system of equations.
+// The non zero terms are:
+//    a32 b-2 c1/2
+//    c   a   b
+//       c   a   b
+//          c   a   b
+//          b0  c0  a1
+void Tridiagonal( int m, double *c, double *a, double *b, double *y )
+{
+   int i;
+
+   // Process first row.
+   b[0] /= a[0];
+   c[0] /= a[0];
+   // Adjust b[1]
+   b[1] -= c[1] * c[0];
+    
+   // Process rows 2 to n-1.
+   for ( i = 1; i < (m-1); i++ )
+      {
+      a[i] -= c[i] * b[i-1];
+      b[i] /= a[i];
+      }
+
+   // Last row.
+   c[m-1] -= b[m-1] * b[m-3];
+   a[m-1] -= c[m-1] * b[m-2];
+
+
+   //
+   // Forward solution step.
+   //
+   y[0] /= a[0];
+   for ( i = 1; i < (m-1); i++ )
+      y[i] = (y[i] - (c[i] * y[i-1])) / a[i];
+   y[m-1] = (y[m-1] - (c[m-1] * y[m-2]) - (b[m-1] * y[m-3])) / a[m-1];
+
+   //
+   // Backward solution step.
+   //
+   for ( i = m-2; i > 0; i-- )
+      y[i] -= b[i] * y[i+1];
+   y[0] -= (b[0] * y[1]) + (c[0] * y[2]);
+
+   return;
 }
