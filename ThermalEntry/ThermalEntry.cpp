@@ -465,6 +465,17 @@ void num_simulation(PROGRAMDATA pd)
 	fclose(f);
 }
 
+/********************************************************
+* triCopy *
+* *
+* Purpose: Copy the contents from pd.tri_hold to the component vectors
+* *
+* Parameters *
+* i - for loop index
+* *
+* Returns *
+* pd *
+********************************************************/
 PROGRAMDATA triCopy(PROGRAMDATA pd){
    int i;
    for(i=0; i<pd.m; i++){
