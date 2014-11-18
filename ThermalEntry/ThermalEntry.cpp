@@ -497,43 +497,7 @@ PROGRAMDATA triCopy(PROGRAMDATA pd){
 ********************************************************/
 PROGRAMDATA num_sim_body(PROGRAMDATA pd)
 {
-	//Index trackers
-	int i;
-	const double dx=pow(pd.dx,2.0);
-	//Note, the simulation should run from the "outside" of the plate to the glue
-	//In this case, with my coordinates, that is from 1 to NxInter
-	for(i=pd.NxInter-1; i > 0 ;i--)
-	{
-			//Calculated residual before temperature so that
-			//the initial temperature value is not lost
-		pd.pp2[i].res = pd.pp[i].Temp
-			- (pd.dt / dx*(pd.pp[i + 1].Temp + pd.pp[i - 1].Temp));
-				//+ pd.pp[i].Temp*(1-2*pd.dt/dx));
-			//Temperature calculation
-			pd.pp2[i].Temp = pd.pp[i].Temp-pd.pp2[i].res ;
 
-			//this will store the largest residual value found during the iteration
-			if(fabs(pd.pp2[i].res)>pd.MaxRes)
-			{
-				pd.MaxRes=fabs(pd.pp2[i].res);
-			}
-	}//End inner body loop
-
-	//"Surface" Boundary condition
-	pd.pp2[0].res = pd.pp[0].Temp - (4 * pd.pp2[1].Temp - pd.pp2[2].Temp) / (3 + 2 * pd.Bi*pd.dx);
-	pd.pp2[0].Temp = pd.pp[0].Temp - pd.pp2[0].res;
-	if (fabs(pd.pp2[0].res)>pd.MaxRes)
-	{
-		pd.MaxRes = fabs(pd.pp2[0].res);
-	}
-
-	//"Gel" boundary condition
-	pd.pp2[pd.NxInter].res = pd.pp[pd.NxInter].Temp - (4 * pd.pp2[pd.NxInter - 1].Temp - pd.pp2[pd.NxInter - 2].Temp) / 3;
-	pd.pp2[pd.NxInter].Temp = pd.pp[pd.NxInter].Temp - pd.pp2[pd.NxInter].res;
-	if (fabs(pd.pp2[pd.NxInter].res)>pd.MaxRes)
-	{
-		pd.MaxRes = fabs(pd.pp2[pd.NxInter].res);
-	}
 
 	return pd;
 }
