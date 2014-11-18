@@ -102,6 +102,9 @@ PROGRAMDATA num_sim_body(PROGRAMDATA);
 // functions for each simulation
 void simulate(PROGRAMDATA);
 
+//Copy the contents of tri_hold
+PROGRAMDATA triCopy(PROGRAMDATA);
+
 // allocating and free allocation fucntions
 PROGRAMDATA allocate(PROGRAMDATA);
 void freepp(PROGRAMDATA);
@@ -460,6 +463,16 @@ void num_simulation(PROGRAMDATA pd)
 	while(pd.pp[pd.NxInter].Temp>pd.Tfinal && pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
 
 	fclose(f);
+}
+
+PROGRAMDATA triCopy(PROGRAMDATA pd){
+   int i;
+   for(i=0; i<pd.m; i++){
+      pd.tri_a[i]=pd.tri_hold[0][i];
+      pd.tri_b[i]=pd.tri_hold[1][i];
+      pd.tri_c[i]=pd.tri_hold[2][i];
+   }
+   return pd;
 }
 
 /********************************************************
