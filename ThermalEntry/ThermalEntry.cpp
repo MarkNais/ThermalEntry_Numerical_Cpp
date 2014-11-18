@@ -37,7 +37,6 @@ typedef struct
 	double r;   // grid node unit-less position along the length of the plate
 	double Temp;   // grid node temperature (finite-difference solution)
 	double u;        //Fully developed flow velocity
-	//double res;    // grid node residual for finite-difference solution
 }
 PLATEPOINT;
 
@@ -59,11 +58,12 @@ typedef struct
 	PLATEPOINT *pp;		//The pointer to the first  array of plate points. (t) "current"
 	PLATEPOINT *pp2;	//The pointer to the second array of plate points. (t+1) "future"
 
-	double *tri_hold[3];//Components of Koorosh's Tri-Diagonal solver. Should not be passed to the function
+	double *tri_hold[4];//Components of Koorosh's Tri-Diagonal solver. Should not be passed to the function
 
 	double *tri_a;		//a-Component of Koorosh's Tri-Diagonal solver
 	double *tri_b;		//b-Component of Koorosh's Tri-Diagonal solver
 	double *tri_c;		//c-Component of Koorosh's Tri-Diagonal solver
+	double *tri_y;		//c-Component of Koorosh's Tri-Diagonal solver
 
 }
 PROGRAMDATA;
@@ -273,7 +273,7 @@ PROGRAMDATA GetProgramData(FILE *f)
 PROGRAMDATA allocate(PROGRAMDATA pd)
 {
 	int i;
-	double *pda[]={pd.tri_hold[0], pd.tri_hold[1], pd.tri_hold[2], pd.tri_a, pd.tri_b, pd.tri_c};
+	double *pda[]={pd.tri_hold[0], pd.tri_hold[1], pd.tri_hold[2], pd.tri_hold[3], pd.tri_a, pd.tri_b, pd.tri_c, pd.tri_y};
 
 	if(pd.Ny<3)
 	{
@@ -297,7 +297,7 @@ PROGRAMDATA allocate(PROGRAMDATA pd)
 	}
 
 	//introduce allocation for the new freepp additions.
-	for(i=0;i<6;i++){
+	for(i=0;i<8;i++){
 		pda[i] = (double*)malloc(pd.Ny*sizeof(double));
 		if (pda[i] == NULL)
 		{
@@ -347,22 +347,9 @@ void simulate(PROGRAMDATA pd)
 ********************************************************/
 PROGRAMDATA pdInit(PROGRAMDATA pd)
 {
-	int i=0, y=0;
 	pd.iter=0;
    pd.NyInter = pd.Ny - 1;
 	pd.dy = 1 / pd.NyInter;
-	// initialize PLATEPOINT variables in allocated array 
-	for(y=0;y<pd.Ny;y++)
-	{
-		pd.pp[y].Temp = 0.0;
-		pd.pp2[y].Temp = pd.pp[y].Temp;
-
-		pd.pp[y].r = (double)y*pd.dy;
-		pd.pp2[y].r = pd.pp[y].r;
-
-		pd.pp[y].u = 2*(1-pow(pd.pp[y].r,2));
-		pd.pp2[y].u = pd.pp[y].u;
-	}
 	return pd;
 }
 
@@ -381,10 +368,38 @@ PROGRAMDATA pdInit(PROGRAMDATA pd)
 ********************************************************/
 void boundary_set(PROGRAMDATA pd)
 {
-	int h;
+   int y;
+   double a = 4.0/(pd.Pe*pow(pd.dy,2)), bc = -2.0 / (pd.Pe * pow(pd.dy,2)) ;
 
-	//Set the entire line to be the initial temperature (Theta)=1
-	for(h=0; h<pd.Nx; h++) pd.pp[h].Temp=1.0;
+	// initialize PLATEPOINT variables in allocated array 
+	for(y=0;y<pd.Ny;y++)
+	{
+		pd.pp[y].Temp = 0.0;
+		pd.pp2[y].Temp = pd.pp[y].Temp;
+
+		pd.pp[y].r = (double)y*pd.dy;
+		pd.pp2[y].r = pd.pp[y].r;
+
+		pd.pp[y].u = 2*(1-pow(pd.pp[y].r,2));
+		pd.pp2[y].u = pd.pp[y].u;
+      
+      pd.tri_hold[3][y] = pd.pp[y].u / pd.dx;
+      pd.tri_hold[0][y] = pd.tri_hold[3][y] + a;
+      pd.tri_hold[1][y] = bc * (1 + pd.dy/(2*pd.pp[y].r));
+      pd.tri_hold[2][y] = bc * (1 - pd.dy/(2*pd.pp[y].r));
+
+	}
+   pd.pp[pd.NyInter].Temp = 1.0;
+   pd.pp2[pd.NyInter].Temp = 1.0;
+   
+   pd.tri_hold[0][0]= 3.0/2.0; //R1a
+   pd.tri_hold[1][0]= -2.0; //R1b
+   pd.tri_hold[2][0]= 1.0/2.0; //R1c
+   pd.tri_hold[3][0]= 0.0; //R1y
+   pd.tri_hold[0][pd.NyInter] = 1.0; //a
+   pd.tri_hold[1][pd.NyInter] = 0.0; //b
+   pd.tri_hold[2][pd.NyInter] = 0.0; //c
+   //tri_hold[3] at NyInter is the same from the loop above.
 }
 
 /********************************************************
@@ -460,10 +475,11 @@ void num_simulation(PROGRAMDATA pd)
 ********************************************************/
 PROGRAMDATA triCopy(PROGRAMDATA pd){
    int i;
-   for(i=0; i<pd.m; i++){
+   for(i=0; i<pd.Ny; i++){
       pd.tri_a[i]=pd.tri_hold[0][i];
       pd.tri_b[i]=pd.tri_hold[1][i];
       pd.tri_c[i]=pd.tri_hold[2][i];
+      pd.tri_y[i]=pd.tri_hold[3][i] * pd.pp[i].u / pd.dx;
    }
    return pd;
 }
