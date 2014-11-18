@@ -333,7 +333,7 @@ void simulate(PROGRAMDATA pd)
 	pd=pdInit(pd);
 	boundary_set(pd);
 	num_simulation(pd);
-	printLabPlates(pd);
+	//printLabPlates(pd);
 	freepp(pd);
 }
 
@@ -514,7 +514,7 @@ PROGRAMDATA num_sim_body(PROGRAMDATA pd)
    pd = triCopy(pd);
    Tridiagonal(pd.Ny, pd.tri_c, pd.tri_a, pd.tri_b, pd.tri_y);
    for(y=0;y<pd.NyInter;y++){
-      pd.pp2[y].Temp = pd.tri_y;
+      pd.pp2[y].Temp = pd.tri_y[y];
    }
    pd.pp2[pd.NyInter].Temp=1;
 	return pd;
@@ -656,15 +656,15 @@ void printLabPlates(PROGRAMDATA pd)
 
 	//header
 	fprintf(f, "VARIABLES = ""X"", ""T""\n");
-	fprintf(f, "ZONE I=%hd, F=POINT\n", pd.Nx);
+	fprintf(f, "ZONE I=%hd, F=POINT\n", pd.Ny);
 
 	//loop heights, starting from the bottom
 	
-		for (i = 0; i<pd.Nx; i++)//loop width, starting from the left
+		for (i = 0; i<pd.Ny; i++)//loop width, starting from the left
 		{
 			//All if the values, in order, in scientific notation. See header for order
 			fprintf(f, "%+12.7lg %+12.7lg\n"
-				, pd.pp[i].x, 1-pd.pp[i].Temp);
+				, pd.pp[i].r, 1-pd.pp[i].Temp);
 		}
 	fclose(f);//close the file stream
 	return;
