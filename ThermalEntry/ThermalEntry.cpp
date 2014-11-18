@@ -116,6 +116,9 @@ void printLabPlates(PROGRAMDATA);
 
 //rounding function
 int nint(double);
+
+//Koorosh's TriDiagonal solver
+void Tridiagonal( int, double*, double*, double*, double*);
 //------------------------- END OF FUNCTION PROTOTYPES ----------------------------------
 
 
@@ -679,4 +682,60 @@ void freepp(PROGRAMDATA pd)
 	free(pd.tri_a);
 	free(pd.tri_b);
 	free(pd.tri_c);
+}
+
+
+//********************************************************************
+//
+// Tridiagonal
+//
+// m is the size of the matrix =(m*m)
+// Care to the values vs. pointers
+// The array destroys the variables, thus give copies
+// 
+// Function to solve a tridiagonal system of equations.
+// The non zero terms are:
+//    a32 b-2 c1/2
+//    c   a   b
+//       c   a   b
+//          c   a   b
+//          b0  c0  a1
+void Tridiagonal( int m, double *c, double *a, double *b, double *y )
+{
+   int i;
+
+   // Process first row.
+   b[0] /= a[0];
+   c[0] /= a[0];
+   // Adjust b[1]
+   b[1] -= c[1] * c[0];
+    
+   // Process rows 2 to n-1.
+   for ( i = 1; i < (m-1); i++ )
+      {
+      a[i] -= c[i] * b[i-1];
+      b[i] /= a[i];
+      }
+
+   // Last row.
+   c[m-1] -= b[m-1] * b[m-3];
+   a[m-1] -= c[m-1] * b[m-2];
+
+
+   //
+   // Forward solution step.
+   //
+   y[0] /= a[0];
+   for ( i = 1; i < (m-1); i++ )
+      y[i] = (y[i] - (c[i] * y[i-1])) / a[i];
+   y[m-1] = (y[m-1] - (c[m-1] * y[m-2]) - (b[m-1] * y[m-3])) / a[m-1];
+
+   //
+   // Backward solution step.
+   //
+   for ( i = m-2; i > 0; i-- )
+      y[i] -= b[i] * y[i+1];
+   y[0] -= (b[0] * y[1]) + (c[0] * y[2]);
+
+   return;
 }
