@@ -27,7 +27,8 @@
 #pragma warning(disable:4996)
 
 #define PI                       (4.0*atan(1.0))
-#define MAX_ITER                 10000            // maximum iterations for F-D
+#define MAX_ITER                 100000            // maximum iterations for F-D
+#define FULL_THERMAL_MEAN        0.99959            // Temperature is fully developed here
 #define DATA_FILENAME			 "data.txt"
 #define MAX_LINE_LENGTH			 1024
 
@@ -51,6 +52,7 @@ typedef struct
 	double dy;		//the unitless node spacing through pipe
 	int iter;		//Tracking the iteration count
    int div;       //Print a line of data every div iterations
+   double ThetaMean; 
 
 	//Interior limits of the simulation, ex: of a 9 by 5 grid, only the inside 7 by 3 grid is calculated.
 	int NyInter;
@@ -437,11 +439,11 @@ void num_simulation(PROGRAMDATA pd)
 		exit (1);
 	}  
 
-   fprintf(f,"iter,pos");
+   fprintf(f,"iter,pos,mean");
    for(i=0;i<pd.Ny;i++){
       fprintf(f,",%le",pd.pp[i].r);
    }
-   fprintf(f,"\n0,0");
+   fprintf(f,"\n0,0,0");
    for(i=0;i<pd.Ny;i++){
       fprintf(f,",%le",pd.pp[i].Temp);
    }
@@ -468,9 +470,15 @@ void num_simulation(PROGRAMDATA pd)
 		pd.pp = pd.pp2;
 		pd.pp2 = Hold;
 
+      //Calculate ThetaMean
+      pd.ThetaMean=0.0;
+      for(i=0;i<pd.Ny;i++){
+         pd.ThetaMean += 2*pd.pp[i].r*pd.pp[i].u*pd.pp[i].Temp*pd.dy;
+      }
+
 		//Print off the maximum residual and root mean squared for each iteration
       if(pd.iter % pd.div==0){
-         fprintf(f,"%d,%f",pd.iter, (double)pd.iter*pd.dx);
+         fprintf(f,"%d,%f,%f",pd.iter, (double)pd.iter*pd.dx, pd.ThetaMean);
          for(i=0;i<pd.Ny;i++){
             fprintf(f,",%le",pd.pp[i].Temp);
          }
@@ -478,7 +486,7 @@ void num_simulation(PROGRAMDATA pd)
       }
 
 	}
-	while(pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
+	while(pd.ThetaMean<FULL_THERMAL_MEAN && pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
 
 	fclose(f);
 }
