@@ -1,23 +1,27 @@
 1             //Run simulation 1?
 51            //Node count in y
+100			  //div
 4000.0        //Pe Number
 0.25          //T Final
 0.1           //dx
 
 0             //Run simulation 2?
-11            //Node count in y
-4000.0        //Pe Number
+21            //Node count in y
+1			  //div
+5000.0        //Pe Number
 0.25          //T Final
 0.1           //dx
 
 0             //Run simulation 3?
 11            //Node count in y
+100			  //div
 4000.0        //Pe Number
 0.25          //T Final
 0.1           //dx
 
 0             //Run simulation 4?
 11            //Node count in y
+100			  //div
 4000.0        //Pe Number
 0.25          //T Final
 0.1           //dx

@@ -50,6 +50,7 @@ typedef struct
 	double dx;		//the unitless node spacing along pipe
 	double dy;		//the unitless node spacing through pipe
 	int iter;		//Tracking the iteration count
+   int div;       //Print a line of data every div iterations
 
 	//Interior limits of the simulation, ex: of a 9 by 5 grid, only the inside 7 by 3 grid is calculated.
 	int NyInter;
@@ -220,14 +221,14 @@ PROGRAMDATA GetProgramData(FILE *f)
 	static int j=1;           //case counter (how many times 
 	//has this function been called?)
 	//An array of pointers where the read data is to be stored.
-	int *pdpi[]={&pd.run,&pd.Ny};
+	int *pdpi[]={&pd.run,&pd.Ny,&pd.div};
 	double *pdp[] = { &pd.Pe, &pd.Tfinal, &pd.dx};
 
    //assume the simulations should not run, Minor protection from read error.
    pd.run=0;
 
 	// retrieves 3 more lines of 'int' data, and points them to their destination
-	for(i=0;i<2;i++)
+	for(i=0;i<3;i++)
 	{
       fgets(buff,MAX_LINE_LENGTH,f);
 		if(feof(f)!=0){
@@ -468,11 +469,13 @@ void num_simulation(PROGRAMDATA pd)
 		pd.pp2 = Hold;
 
 		//Print off the maximum residual and root mean squared for each iteration
-		fprintf(f,"%d,%d",pd.iter, (double)pd.iter*pd.dx);
-      for(i=0;i<pd.Ny;i++){
-         fprintf(f,",%le",pd.pp[i].Temp);
+      if(pd.iter % pd.div==0){
+         fprintf(f,"%d,%f",pd.iter, (double)pd.iter*pd.dx);
+         for(i=0;i<pd.Ny;i++){
+            fprintf(f,",%le",pd.pp[i].Temp);
+         }
+         fprintf(f,"\n");
       }
-      fprintf(f,"\n");
 
 	}
 	while(pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
@@ -560,43 +563,7 @@ FILE *filewrite(PROGRAMDATA pd)
 	ocase = pd.scase;//set ocase to scase, whether or not scase is differemt or not.
 
 	//Write to first part of the file name.
-	sprintf(filen, "Time-Flow Simulation Nx-");
-
-	//write the second part of the file name
-
-	switch (ocase)
-	{
-	case 1:
-		strcat(filen, "11");
-		break;
-	case 2:
-		strcat(filen, "21");
-		break;
-	case 3:
-		strcat(filen, "41");
-		break;
-	case 4:
-		strcat(filen, "81");
-		break;
-	case 5:
-		strcat(filen, "161");
-		break;
-
-	default:
-		break;
-	}
-
-	//If it's the first time it's been called in a simulation, it's an RMS file,
-	//Next it's the plate file. If the function is called again,
-	//it'll store the data in an extra txt file, warns the user.
-	if (j == 0) strcat(filen, "RRRMS.csv");
-	else if (j == 1) strcat(filen, " contour.dat");
-	else
-	{
-		strcat(filen, "EXTRA.txt");
-		printf("Function \"filewrite\" called too many times!\n");
-	}
-
+	sprintf(filen, "Thermal Entry Simulation %d.csv",ocase);
 
 	//attempts to open the file in read mode for checking
 	f = fopen(filen, "r");
