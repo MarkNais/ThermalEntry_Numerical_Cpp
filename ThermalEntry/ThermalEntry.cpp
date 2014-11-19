@@ -486,7 +486,7 @@ void num_simulation(PROGRAMDATA pd)
       }
 
 	}
-	while(pd.ThetaMean<FULL_THERMAL_MEAN && pd.iter<=MAX_ITER ); //|| iter<=MAX_ITER
+	while(pd.ThetaMean<FULL_THERMAL_MEAN && pd.iter<=MAX_ITER ); 
 
 	fclose(f);
 }
